@@ -1,5 +1,4 @@
-fastapi
-uvicorn[standard]
+fastapi[all]
 requests
 beautifulsoup4
 faiss-cpu
