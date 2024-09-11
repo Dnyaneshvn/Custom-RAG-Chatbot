@@ -39,3 +39,7 @@ This project implements a custom Retrieval-Augmented Generation (RAG) chatbot us
 - Langchain
 - OpenAI
 - Qdrant
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
