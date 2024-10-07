@@ -1,7 +1,8 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel
 import requests
 from bs4 import BeautifulSoup
+import fitz  # PyMuPDF for PDF parsing
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.vectorstores import Qdrant
 from langchain_openai import OpenAIEmbeddings
@@ -34,7 +35,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"], 
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -48,7 +49,7 @@ class URL(BaseModel):
 class Question(BaseModel):
     question: str
 
-def read_data(url):
+def read_data_from_url(url):
     response = requests.get(url)
     if response.status_code == 200:
         soup = BeautifulSoup(response.content, 'html.parser')
@@ -57,6 +58,13 @@ def read_data(url):
         return text
     else:
         return ""
+
+def read_data_from_pdf(pdf_file):
+    text = ""
+    with fitz.open(pdf_file) as pdf:
+        for page in pdf:
+            text += page.get_text()
+    return text
 
 def get_text_chunks(text):
     text_splitter = CharacterTextSplitter(
@@ -76,7 +84,7 @@ def get_embedding(text_chunks, model_id="text-embedding-ada-002"):
             model=model_id
         )
         embeddings = response['data'][0]['embedding']
-        point_id = str(uuid.uuid4()) 
+        point_id = str(uuid.uuid4())
 
         points.append(PointStruct(id=point_id, vector=embeddings, payload={"text": chunk}))
 
@@ -123,11 +131,22 @@ async def def_home():
 @app.post("/process_url/")
 def process_url(url: URL):
     try:
-        get_raw_text = read_data(url.url)
+        get_raw_text = read_data_from_url(url.url)
         chunks = get_text_chunks(get_raw_text)
         vectors = get_embedding(chunks)
         insert_data(vectors)
-        return {"message": "Data processed and inserted successfully."}
+        return {"message": "Data from URL processed and inserted successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/process_pdf/")
+async def process_pdf(file: UploadFile = File(...)):
+    try:
+        get_raw_text = read_data_from_pdf(file.file)
+        chunks = get_text_chunks(get_raw_text)
+        vectors = get_embedding(chunks)
+        insert_data(vectors)
+        return {"message": "Data from PDF processed and inserted successfully."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
